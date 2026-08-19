@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Deep Fried Proxy Printer</title>
+<style>
+  :root{
+    --ink:#1a1a1a;
+    --paper:#f4f1ea;
+    --accent:#c0392b;
+    --muted:#9a9a9a;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:#3d3d3d;
+    font-family:Arial, Helvetica, sans-serif;
+    color:var(--ink);
+  }
+
+  /* ---------- CONTROL PANEL (screen only) ---------- */
+  .panel{
+    background:var(--paper);
+    padding:20px 24px 28px;
+    max-width:900px;
+    margin:0 auto;
+    border-bottom:6px solid var(--ink);
+  }
+  .panel h1{
+    font-family:Arial, Helvetica, sans-serif;
+    font-weight:700;
+    letter-spacing:.3px;
+    font-size:26px;
+    margin:6px 0 2px;
+    color:var(--accent);
+  }
+  .panel p.sub{margin:0 0 18px;font-size:14px;color:#555;}
+  label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;font-weight:700;color:#444;display:block;margin-bottom:2px;}
+  textarea{
+    width:100%;
+    font-family:Arial, Helvetica, sans-serif;
+    font-size:14px;
+    padding:8px 10px;
+    border:2px solid var(--ink);
+    border-radius:4px;
+    background:#fff;
+    min-height:110px;
+    resize:vertical;
+  }
+  .btnrow{margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+  button{
+    font-family:Arial, Helvetica, sans-serif;
+    font-weight:700;
+    font-size:14px;
+    letter-spacing:.2px;
+    padding:9px 20px;
+    border:2px solid var(--ink);
+    border-radius:6px;
+    background:var(--accent);
+    color:#fff;
+    cursor:pointer;
+    box-shadow:2px 2px 0 var(--ink);
+  }
+  button:hover{transform:translate(1px,1px);box-shadow:1px 1px 0 var(--ink);}
+  button.secondary{background:#fff;color:var(--ink);}
+  button.ghost{background:transparent;color:#555;box-shadow:none;border-style:dashed;}
+  #import-status{font-size:13px;margin-top:8px;color:#555;}
+
+  .toggles{margin-top:16px;display:flex;flex-direction:column;gap:6px;}
+  .toggles label{
+    display:flex;align-items:center;gap:6px;
+    text-transform:none;font-size:13px;font-weight:400;color:var(--ink);
+  }
+  #fry-status{font-size:12px;color:#a33;margin:0 0 0 24px;}
+
+  .list{margin-top:20px;}
+  .list h2{font-family:Arial, Helvetica, sans-serif;font-weight:700;font-size:18px;color:var(--ink);margin:0 0 8px;}
+  .card-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    background:#fff;
+    border:1.5px solid var(--ink);
+    border-radius:6px;
+    padding:8px 12px;
+    margin-bottom:6px;
+    font-size:13px;
+  }
+  .card-row .meta{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .card-row .meta b{font-size:14px;margin-right:8px;}
+  .card-row .printing-picker{flex:0 0 auto;}
+  .card-row .actions button{font-size:12px;padding:4px 10px;box-shadow:1px 1px 0 var(--ink);}
+  .empty-note{font-size:13px;color:#777;font-style:italic;padding:10px 0;}
+
+  .count-badge{
+    display:inline-block;background:var(--ink);color:#fff;font-family:Arial, Helvetica, sans-serif;
+    font-size:13px;padding:2px 10px;border-radius:20px;margin-left:6px;
+  }
+
+  /* ---------- PRINT SHEETS ---------- */
+  .sheets{
+    padding:30px 0 60px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:30px;
+  }
+  .page{
+    background:#fff;
+    width:210mm;
+    height:297mm;
+    padding:10mm;
+    box-shadow:0 4px 18px rgba(0,0,0,.4);
+    display:grid;
+    grid-template-columns:repeat(3, 63mm);
+    grid-template-rows:repeat(3, 88mm);
+    gap:3mm;
+    justify-content:center;
+    align-content:center;
+  }
+  .card{
+    width:63mm;
+    height:88mm;
+    border:1.1pt solid var(--ink);
+    border-radius:2.8mm;
+    overflow:hidden;
+    position:relative;
+    background:#fff;
+  }
+  .card.blank{border:0.6pt dashed #ccc;}
+  .card.missing{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    padding:4mm;
+    font-size:8pt;
+    color:#999;
+  }
+  .card img.full-card-img{
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+    object-fit:cover;
+    display:block;
+  }
+  .card.fried-fallback img.full-card-img{
+    filter: contrast(190%) saturate(320%) brightness(108%) sepia(0.12);
+  }
+  .card .frying-badge{
+    position:absolute;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:rgba(0,0,0,.55);
+    color:#fff;
+    font-size:8pt;
+    font-family:Arial, sans-serif;
+    text-align:center;
+  }
+
+  /* ---------- AGED / DISTRESSED OVERLAY ---------- */
+  .card.distressed{
+    filter: contrast(0.88) brightness(0.96) saturate(0.85);
+  }
+  .card.distressed::before{
+    content:'';
+    position:absolute;
+    inset:0;
+    pointer-events:none;
+    opacity:0.5;
+    mix-blend-mode:multiply;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.5 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  .card.distressed::after{
+    content:'';
+    position:absolute;
+    inset:0;
+    pointer-events:none;
+    box-shadow: inset 0 0 7mm rgba(60,50,40,0.35), inset 0 0 1.5mm rgba(60,50,40,0.4);
+  }
+
+  @media print{
+    body{background:#fff;}
+    .panel{display:none;}
+    .sheets{padding:0;gap:0;}
+    .page{box-shadow:none;margin:0;page-break-after:always;}
+    .page:last-child{page-break-after:auto;}
+  }
+  @page{
+    size:A4;
+    margin:0;
+  }
+</style>
+</head>
+<body>
+
+  <div class="panel">
+    <h1>DEEP FRIED PROXY PRINTER</h1>
+    <p class="sub">Paste a decklist, pull the real card images from Scryfall, optionally deep fry them, and print at true size (63×88mm, 9-per-A4).</p>
+
+    <label>Decklist</label>
+    <textarea id="f-bulk" placeholder="1 Sol Ring&#10;1 Skullclamp&#10;1 Hare Apparent&#10;Lightning Bolt"></textarea>
+    <div class="btnrow">
+      <button id="import-btn" type="button">⇩ Import from Scryfall</button>
+    </div>
+    <div id="import-status"></div>
+
+    <div class="toggles">
+      <label>
+        <input type="checkbox" id="f-deepfry" style="width:auto;">
+        🔥 Deep fry cards (meme filter — contrast, saturation, sharpen, JPEG artifacts)
+      </label>
+      <div id="fry-status"></div>
+      <label>
+        <input type="checkbox" id="f-distressed" style="width:auto;">
+        Aged / faded print look (adds grain + muted tone, like a worn photocopy)
+      </label>
+    </div>
+
+    <div class="list">
+      <h2>Your Cards <span class="count-badge" id="count">0</span></h2>
+      <div id="card-list"></div>
+      <div class="btnrow">
+        <button id="print-btn" type="button" class="secondary">🖨 Print / Save as PDF</button>
+        <button id="clear-all-btn" type="button" class="ghost">Remove All</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="sheets" id="sheets"></div>
+
+<script>
+let cards = [];
+
+const el = id => document.getElementById(id);
+
+function escapeHtml(s){
+  return (s || '').replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+
+function buildTypeLine(type, subtype){
+  return subtype ? `${type} — ${subtype}` : (type || '');
+}
+
+function plainSymbols(text){
+  return (text || '').replace(/\{([^{}]+)\}/g, '$1');
+}
+
+function parseDecklist(text){
+  return text.split('\n')
+    .map(l => l.trim())
+    .filter(l => l.length > 0)
+    .map(line => {
+      const m = line.match(/^(\d+)\s*[xX]?\s+(.+)$/);
+      if(m){
+        return {qty: parseInt(m[1], 10) || 1, name: m[2].trim()};
+      }
+      return {qty: 1, name: line.replace(/^[xX]\s+/, '').trim()};
+    })
+    .filter(e => e.name.length > 0);
+}
+
+function cardDataFromScryfall(card){
+  // Handle double-faced / split / adventure cards by using the front face
+  const face = (card.card_faces && card.card_faces.length) ? card.card_faces[0] : null;
+  const cost = (face ? face.mana_cost : card.mana_cost) || '';
+  const fullTypeLine = card.type_line || (face ? face.type_line : '') || '';
+  const [type, subtype] = fullTypeLine.split('—').map(s => (s || '').trim());
+  const power = face ? face.power : card.power;
+  const toughness = face ? face.toughness : card.toughness;
+  const loyalty = face ? face.loyalty : card.loyalty;
+  let pt = '';
+  if(power !== undefined && toughness !== undefined) pt = `${power}/${toughness}`;
+  else if(loyalty !== undefined) pt = `${loyalty}`;
+  const imgSource = card.image_uris || (face && face.image_uris) || null;
+  const fullUrl = imgSource ? (imgSource.png || imgSource.large || imgSource.normal || '') : '';
+  return {
+    name: card.name,
+    cost,
+    type: type || '',
+    subtype: subtype || '',
+    pt,
+    fullUrl,
+    setCode: (card.set || '').toUpperCase(),
+    printings: null,
+    printingsLoading: false
+  };
+}
+
+async function fetchScryfallBatch(names){
+  const res = await fetch('https://api.scryfall.com/cards/collection', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({identifiers: names.map(n => ({name: n}))})
+  });
+  if(!res.ok) throw new Error('Scryfall request failed (' + res.status + ')');
+  return res.json();
+}
+
+el('import-btn').addEventListener('click', async () => {
+  const entries = parseDecklist(el('f-bulk').value);
+  if(entries.length === 0) return;
+
+  const statusEl = el('import-status');
+  const importBtn = el('import-btn');
+  importBtn.disabled = true;
+  statusEl.textContent = `Looking up ${entries.length} card${entries.length > 1 ? 's' : ''} on Scryfall…`;
+
+  const uniqueNames = [...new Set(entries.map(e => e.name))];
+  const found = new Map();
+  const notFound = [];
+
+  try{
+    for(let i = 0; i < uniqueNames.length; i += 75){
+      const batch = uniqueNames.slice(i, i + 75);
+      const data = await fetchScryfallBatch(batch);
+      (data.data || []).forEach(card => found.set(card.name.toLowerCase(), card));
+      (data.not_found || []).forEach(nf => notFound.push(nf.name));
+    }
+
+    let addedCount = 0;
+    entries.forEach(entry => {
+      let card = found.get(entry.name.toLowerCase());
+      if(!card){
+        for(const c of found.values()){
+          if(c.name.toLowerCase().includes(entry.name.toLowerCase())){ card = c; break; }
+        }
+      }
+      if(card){
+        const data = cardDataFromScryfall(card);
+        for(let n = 0; n < entry.qty; n++) cards.push({...data});
+        addedCount += entry.qty;
+      } else if(!notFound.some(nfName => nfName.toLowerCase() === entry.name.toLowerCase())){
+        notFound.push(entry.name);
+      }
+    });
+
+    render();
+    el('f-bulk').value = '';
+
+    if(el('f-deepfry').checked) runDeepFryBatch();
+
+    if(notFound.length){
+      statusEl.innerHTML = `Added ${addedCount} card(s). Couldn't find: ${notFound.map(escapeHtml).join(', ')} — check spelling.`;
+      statusEl.style.color = '#b03a2e';
+    } else {
+      statusEl.textContent = `Added ${addedCount} card(s) successfully.`;
+      statusEl.style.color = '#2e7d32';
+    }
+  } catch(err){
+    statusEl.textContent = 'Error reaching Scryfall: ' + err.message;
+    statusEl.style.color = '#b03a2e';
+  } finally {
+    importBtn.disabled = false;
+  }
+});
+
+// ---------- ALTERNATE PRINTINGS ----------
+async function loadPrintings(i){
+  const c = cards[i];
+  if(!c || c.printings || c.printingsLoading) return;
+  c.printingsLoading = true;
+  render();
+  try{
+    const q = encodeURIComponent(`!"${c.name}"`);
+    const res = await fetch(`https://api.scryfall.com/cards/search?q=${q}&unique=prints&order=released&dir=desc`);
+    if(!res.ok) throw new Error('search failed');
+    const data = await res.json();
+    c.printings = (data.data || []).map(pr => {
+      const face = (pr.card_faces && pr.card_faces.length) ? pr.card_faces[0] : null;
+      const imgSource = pr.image_uris || (face && face.image_uris) || null;
+      return {
+        setCode: (pr.set || '').toUpperCase(),
+        setName: pr.set_name || pr.set,
+        fullUrl: imgSource ? (imgSource.png || imgSource.large || imgSource.normal || '') : ''
+      };
+    });
+  } catch(e){
+    c.printings = [];
+  }
+  c.printingsLoading = false;
+  render();
+}
+
+function selectPrinting(i, idx){
+  const c = cards[i];
+  if(!c || !c.printings) return;
+  const p = c.printings[parseInt(idx, 10)];
+  if(!p || !p.fullUrl) return;
+  c.fullUrl = p.fullUrl;
+  c.setCode = p.setCode;
+  render();
+  if(el('f-deepfry').checked) runDeepFryBatch();
+}
+
+function printingControlHtml(c, i){
+  if(c.printingsLoading){
+    return `<span style="font-size:11px;color:#777;white-space:nowrap;">Loading sets…</span>`;
+  }
+  if(c.printings && c.printings.length){
+    const options = c.printings.map((p, idx) =>
+      `<option value="${idx}" ${p.setCode === c.setCode ? 'selected' : ''}>${escapeHtml(p.setCode)} — ${escapeHtml(p.setName)}</option>`
+    ).join('');
+    return `<select onchange="selectPrinting(${i}, this.value)" style="width:auto;font-size:11px;padding:3px 4px;max-width:150px;">${options}</select>`;
+  }
+  if(c.printings && c.printings.length === 0){
+    return `<span style="font-size:11px;color:#999;white-space:nowrap;">No prints found</span>`;
+  }
+  return `<button class="ghost" type="button" style="font-size:11px;padding:4px 8px;white-space:nowrap;" onclick="loadPrintings(${i})">🔀 Set${c.setCode ? ' (' + escapeHtml(c.setCode) + ')' : ''}</button>`;
+}
+
+function removeCard(i){
+  cards.splice(i,1);
+  render();
+}
+
+el('clear-all-btn').addEventListener('click', () => {
+  if(cards.length && !confirm('Remove all ' + cards.length + ' cards?')) return;
+  cards = [];
+  render();
+});
+
+el('print-btn').addEventListener('click', () => window.print());
+el('f-distressed').addEventListener('change', render);
+el('f-deepfry').addEventListener('change', () => {
+  render();
+  if(el('f-deepfry').checked) runDeepFryBatch();
+});
+
+// ---------- DEEP FRY IMAGE PIPELINE ----------
+const friedCache = new Map();   // url -> data URL (or null if processing failed)
+const friedInFlight = new Set();
+
+function sharpenCanvas(ctx, w, h){
+  const src = ctx.getImageData(0, 0, w, h);
+  const dst = ctx.createImageData(w, h);
+  const sd = src.data, dd = dst.data;
+  const kernel = [0, -0.65, 0, -0.65, 3.6, -0.65, 0, -0.65, 0];
+  for(let y = 0; y < h; y++){
+    for(let x = 0; x < w; x++){
+      for(let c = 0; c < 3; c++){
+        let sum = 0, k = 0;
+        for(let ky = -1; ky <= 1; ky++){
+          for(let kx = -1; kx <= 1; kx++){
+            const yy = Math.min(h - 1, Math.max(0, y + ky));
+            const xx = Math.min(w - 1, Math.max(0, x + kx));
+            sum += sd[(yy * w + xx) * 4 + c] * kernel[k++];
+          }
+        }
+        dd[(y * w + x) * 4 + c] = Math.max(0, Math.min(255, sum));
+      }
+      dd[(y * w + x) * 4 + 3] = sd[(y * w + x) * 4 + 3];
+    }
+  }
+  ctx.putImageData(dst, 0, 0);
+}
+
+function addNoiseCanvas(ctx, w, h, amount = 16){
+  const id = ctx.getImageData(0, 0, w, h);
+  const d = id.data;
+  for(let i = 0; i < d.length; i += 4){
+    const n = (Math.random() - 0.5) * amount * 2;
+    d[i] = Math.max(0, Math.min(255, d[i] + n));
+    d[i+1] = Math.max(0, Math.min(255, d[i+1] + n));
+    d[i+2] = Math.max(0, Math.min(255, d[i+2] + n));
+  }
+  ctx.putImageData(id, 0, 0);
+}
+
+async function jpegRepeatPasses(canvas, ctx, w, h, times, quality){
+  for(let i = 0; i < times; i++){
+    const dataUrl = canvas.toDataURL('image/jpeg', quality); // throws if canvas is tainted
+    await new Promise((resolve, reject) => {
+      const im = new Image();
+      im.onload = () => { ctx.clearRect(0, 0, w, h); ctx.drawImage(im, 0, 0, w, h); resolve(); };
+      im.onerror = reject;
+      im.src = dataUrl;
+    });
+  }
+}
+
+function deepFryDataUrl(url, targetW = 420){
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = async () => {
+      try{
+        const scale = Math.min(1, targetW / img.naturalWidth);
+        const w = Math.max(1, Math.round(img.naturalWidth * scale));
+        const h = Math.max(1, Math.round(img.naturalHeight * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.filter = 'contrast(190%) saturate(320%) brightness(108%)';
+        ctx.drawImage(img, 0, 0, w, h);
+        ctx.filter = 'none';
+        sharpenCanvas(ctx, w, h);
+        addNoiseCanvas(ctx, w, h);
+        await jpegRepeatPasses(canvas, ctx, w, h, 5, 0.2);
+        resolve(canvas.toDataURL('image/jpeg', 0.6));
+      } catch(e){
+        resolve(null); // tainted canvas or other failure — CSS fallback used instead
+      }
+    };
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
+}
+
+async function runDeepFryBatch(){
+  const targets = [...new Set(cards.map(c => c.fullUrl).filter(Boolean))]
+    .filter(url => !friedCache.has(url) && !friedInFlight.has(url));
+  if(targets.length === 0) return;
+  const statusEl = el('fry-status');
+  let done = 0;
+  for(const url of targets){
+    friedInFlight.add(url);
+    if(statusEl) statusEl.textContent = `🔥 Frying image ${done + 1} of ${targets.length}…`;
+    const result = await deepFryDataUrl(url);
+    friedCache.set(url, result);
+    friedInFlight.delete(url);
+    done++;
+    render();
+  }
+  if(statusEl) statusEl.textContent = done > 0 ? `🔥 Done — fried ${done} image(s).` : '';
+}
+
+// ---------- RENDER ----------
+function render(){
+  el('count').textContent = cards.length;
+  const listEl = el('card-list');
+  if(cards.length === 0){
+    listEl.innerHTML = '<div class="empty-note">No cards yet — paste a decklist above and hit "Import from Scryfall".</div>';
+  } else {
+    listEl.innerHTML = cards.map((c,i) => `
+      <div class="card-row">
+        <div class="meta"><b>${escapeHtml(c.name)}</b>${c.cost ? ' — ' + escapeHtml(plainSymbols(c.cost)) : ''}${c.type ? ' · ' + escapeHtml(buildTypeLine(c.type, c.subtype)) : ''}${c.pt ? ' · ' + escapeHtml(c.pt) : ''}</div>
+        <div class="printing-picker">${printingControlHtml(c, i)}</div>
+        <div class="actions">
+          <button class="ghost" type="button" onclick="removeCard(${i})">Remove</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  const sheetsEl = el('sheets');
+  sheetsEl.innerHTML = '';
+  if(cards.length === 0) return;
+
+  const deepFryOn = el('f-deepfry').checked;
+  const distressed = el('f-distressed').checked;
+  const perPage = 9;
+  const totalSlots = Math.ceil(cards.length / perPage) * perPage;
+
+  for(let p = 0; p < totalSlots / perPage; p++){
+    const page = document.createElement('div');
+    page.className = 'page';
+    for(let s = 0; s < perPage; s++){
+      const idx = p * perPage + s;
+      const c = cards[idx];
+      const cardDiv = document.createElement('div');
+      if(c && c.fullUrl){
+        let srcToUse = c.fullUrl;
+        let cssFallback = false;
+        let stillFrying = false;
+        if(deepFryOn){
+          const cached = friedCache.get(c.fullUrl);
+          if(cached === undefined){ stillFrying = true; }
+          else if(cached === null){ cssFallback = true; }
+          else { srcToUse = cached; }
+        }
+        cardDiv.className = 'card' + (distressed ? ' distressed' : '') + (cssFallback ? ' fried-fallback' : '');
+        cardDiv.innerHTML = `<img class="full-card-img" src="${escapeHtml(srcToUse)}" alt="${escapeHtml(c.name)}">${stillFrying ? '<div class="frying-badge">🔥 frying…</div>' : ''}`;
+      } else if(c){
+        cardDiv.className = 'card missing';
+        cardDiv.textContent = `No image found for "${c.name}"`;
+      } else {
+        cardDiv.className = 'card blank';
+      }
+      page.appendChild(cardDiv);
+    }
+    sheetsEl.appendChild(page);
+  }
+}
+
+render();
+</script>
+</body>
+</html>
